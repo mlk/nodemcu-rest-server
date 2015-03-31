@@ -1,10 +1,6 @@
 
 local json = require "cjson"
 
-function starts(String,Start)
-   return string.sub(String,1,string.len(Start))==Start
-end
-
 function mysplit(inputstr, sep)
         if sep == nil then
                 sep = "%s"
@@ -16,6 +12,35 @@ function mysplit(inputstr, sep)
         end
         return t
 end
+
+function sendResponse(conn, response) 
+    if response.status == nil then
+        response.status = 200
+    end
+        
+    if response.headers == nil then
+        response.headers = {}
+    end
+    
+    reponseNiceName = "unknown"
+    
+    conn:send("HTTP/1.1 " .. response.status .. " " .. reponseNiceName .. " \n")
+    foundContentType = false;
+    for k,v in pairs(response.headers) do 
+         conn:send(k .. ":" .. v .. "\n")
+         if k == "Content-Type" then
+            foundContentType = true
+         end
+    end
+    if not foundContentType then
+        conn:send("Content-Type:application/json\n")
+    end
+    conn:send("\n")
+    if response.content ~= nil then
+        conn:send(json.encode(response.content))
+    end
+end
+
  
 srv=net.createServer(net.TCP)
   srv:listen(80,function(conn)
@@ -30,19 +55,28 @@ srv=net.createServer(net.TCP)
           request.url = (splitUp[2])
           request.protocal = (splitUp[3])
       else
-        print("Confused. :(")
-        conn:send("HTTP/1.1 500 CONFUSED")
+        sendResponse(conn, {
+            status = 500,
+            content = { error = "Confused by request. :("}
+        });
+        return;
       end
       print("Method: " .. request.method .. ", URL: " .. request.url)
       if HttpRequests[request.url] ~= nil then
         if HttpRequests[request.url][request.method] ~= nil then
             response = HttpRequests[request.url][request.method]()
-            conn:send("HTTP/1.1 " .. response.status .. " OK\n\n" .. json.encode(response.content))
+            sendResponse(conn, response)
         else
-            conn:send("HTTP/1.1 405 Method not supported\n\r\n\r Method not supported. :(" .. request.url)
+            sendResponse(conn, {
+                status = 405,
+                content = { error = "Method not supported for URL", url = request.url}
+            });
         end
       else 
-        conn:send("HTTP/1.1 404 Not Found\n\r\n\r The resource has not been found. :(" .. request.url)
+          sendResponse(conn, {
+                status = 404,
+                content = { error = "File not found", url = request.url}
+            });
       end
       conn:close()
     end)
