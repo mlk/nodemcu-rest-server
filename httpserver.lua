@@ -1,16 +1,7 @@
-
 local json = require "cjson"
 
-function mysplit(inputstr, sep)
-        if sep == nil then
-                sep = "%s"
-        end
-        local t={} ; i=1
-        for str in string.gmatch(inputstr, "([^"..sep.."]+)") do
-                t[i] = str
-                i = i + 1
-        end
-        return t
+function isempty(s)
+  return s == nil or s == ''
 end
 
 function sendResponse(conn, response) 
@@ -41,30 +32,63 @@ function sendResponse(conn, response)
     end
 end
 
- 
+
+function elSplit( value, inSplitPattern, outResults )
+   if not outResults then
+      outResults = { }
+   end
+   local theStart = 1
+   local theSplitStart, theSplitEnd = string.find( value, inSplitPattern, theStart )
+   while theSplitStart do
+      table.insert( outResults, string.sub( value, theStart, theSplitStart-1 ) )
+      theStart = theSplitEnd + 1
+      theSplitStart, theSplitEnd = string.find( value, inSplitPattern, theStart )
+   end
+   table.insert( outResults, string.sub( value, theStart ) )
+   return outResults
+end
+
+print("Creating WWW server")
+
 srv=net.createServer(net.TCP)
   srv:listen(80,function(conn)
   conn:on("receive",function(conn,payload)
       request = {}
-      httpRequest = mysplit(payload, "\r\n")
-      i = (httpRequest[1])
-      if string.match(i, "HTTP") then
-          splitUp = mysplit(i)
-           
-          request.method = (splitUp[1])
-          request.url = (splitUp[2])
-          request.protocal = (splitUp[3])
-      else
-        sendResponse(conn, {
-            status = 500,
-            content = { error = "Confused by request. :("}
-        });
-        return;
+      
+      splitPayload = elSplit(payload, "\r\n\r\n")
+      httpRequest = elSplit((splitPayload[1]), "\r\n")
+      if not isempty((splitPayload[2])) then 
+        print((splitPayload[2]))
+        request.content = json.decode((splitPayload[2]))
       end
-      print("Method: " .. request.method .. ", URL: " .. request.url)
+      
+      payload = nil
+      splitPayload[1] = nil      
+      splitPayload[2] = nil
+      collectgarbage()
+      
+      local splitUp = elSplit((httpRequest[1]), "%s+")
+       
+      request.method = (splitUp[1])
+      request.url = (splitUp[2])
+      request.protocal = (splitUp[3])
+      splitUp = nil
+
+      request.headers = {}
+      table.remove(httpRequest, 1)
+      for idx, line in ipairs(httpRequest) do
+        local header = elSplit(line, ":")
+        local name = (header[1])
+        local value = (header[2]) 
+        request.headers[name] = value
+        header = nil
+        name = nil
+        value = nil
+      end
+
       if HttpRequests[request.url] ~= nil then
         if HttpRequests[request.url][request.method] ~= nil then
-            response = HttpRequests[request.url][request.method]()
+            response = HttpRequests[request.url][request.method](request)
             sendResponse(conn, response)
         else
             sendResponse(conn, {
@@ -79,5 +103,8 @@ srv=net.createServer(net.TCP)
             });
       end
       conn:close()
+      request = nil
+      collectgarbage()
+      print("Request Processed" .. node.heap())
     end)
 end)   

@@ -1,4 +1,6 @@
-function setupWifiMode(action)
+local simplewificonfig = {}
+
+function simplewificonfig.setupWifiMode(action)
     local json = require "cjson"
     file.open("wifi_settings.json","r")
     local theSettings = file.read()
@@ -20,3 +22,5 @@ function setupWifiMode(action)
         end
     end) 
 end
+
+return simplewificonfig
