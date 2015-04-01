@@ -21,6 +21,6 @@ function simplewificonfig.setupWifiMode(action)
             action()
         end
     end) 
-end
+end    
 
 return simplewificonfig
